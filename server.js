@@ -9,15 +9,12 @@ const port = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// Conexión directa a Supabase mediante cliente nativo PostgreSQL
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false
-  }
+  ssl: { rejectUnauthorized: false }
 });
 
-// Ruta principal de salud / prueba
+// Ruta Base / Health check
 app.get('/', async (req, res) => {
   try {
     const result = await pool.query('SELECT NOW()');
@@ -27,11 +24,78 @@ app.get('/', async (req, res) => {
       time: result.rows[0].now
     });
   } catch (err) {
-    console.error(err);
     res.status(500).json({ status: 'error', error: err.message });
   }
 });
 
+// 1. ENDPOINTS USUARIOS
+app.get('/api/users', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT id, nombre, email, rol, created_at FROM users');
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 2. ENDPOINTS PRODUCTOS
+app.get('/api/products', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM products ORDER BY id ASC');
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/products', async (req, res) => {
+  const { nombre, precio_compra, precio_venta, stock_actual, stock_minimo } = req.body;
+  try {
+    const result = await pool.query(
+      'INSERT INTO products (nombre, precio_compra, precio_venta, stock_actual, stock_minimo) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [nombre, precio_compra, precio_venta, stock_actual || 0, stock_minimo || 5]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 3. ENDPOINTS COMPRAS (PROVEEDORES)
+app.get('/api/purchases', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM purchases ORDER BY fecha DESC');
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 4. ENDPOINTS VENTAS (CLIENTES)
+app.get('/api/sales', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM sales ORDER BY fecha DESC');
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 5. ENDPOINTS KARDEX / MOVIMIENTOS INVENTARIO
+app.get('/api/inventory-movements', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT im.*, p.nombre as producto_nombre 
+      FROM inventory_movements im
+      JOIN products p ON im.product_id = p.id
+      ORDER BY im.fecha DESC
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.listen(port, () => {
-  console.log(`Servidor activo en el puerto ${port}`);
+  console.log(`Servidor activo en puerto ${port}`);
 });
