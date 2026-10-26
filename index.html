@@ -1,0 +1,1189 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full bg-slate-900 text-slate-100">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pollos Oasis - Sistema de Compra, Venta e Inventario</title>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            oasis: {
+              50: '#fff8f1',
+              100: '#feeed5',
+              200: '#fcd7aa',
+              300: '#fbba72',
+              400: '#f9943b',
+              500: '#f77313',
+              600: '#e85509',
+              700: '#c13f0b',
+              800: '#993311',
+              900: '#7c2c12',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <!-- Google Fonts Inter -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" />
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 0.6);
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: rgba(247, 115, 19, 0.4);
+      border-radius: 4px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: rgba(247, 115, 19, 0.7);
+    }
+  </style>
+</head>
+<body class="h-full overflow-hidden flex flex-col bg-slate-950 text-slate-100">
+
+  <!-- Toast Container -->
+  <div id="toastContainer" class="fixed top-5 right-5 z-50 flex flex-col gap-2 max-w-sm"></div>
+
+  <!-- Main Modal Container -->
+  <div id="modalOverlay" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-40 hidden flex items-center justify-center p-4">
+    <div id="modalContent" class="bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl max-w-lg w-full p-6 relative overflow-hidden transform transition-all scale-95 opacity-0 duration-200">
+      <button onclick="closeModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white text-lg">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+      <div id="modalBody"></div>
+    </div>
+  </div>
+
+  <div class="flex h-screen overflow-hidden">
+    <!-- Sidebar Navigation -->
+    <aside class="w-64 bg-slate-900/90 border-r border-slate-800 flex flex-col justify-between shrink-0 z-20">
+      <div>
+        <!-- Brand Header -->
+        <div class="p-5 flex items-center gap-3 border-b border-slate-800/80">
+          <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-oasis-500 to-amber-600 flex items-center justify-center text-white shadow-lg shadow-oasis-500/30 text-xl font-bold">
+            <i class="fa-solid fa-drumstick-bite"></i>
+          </div>
+          <div>
+            <h1 class="font-extrabold text-lg text-white tracking-wide">POLLOS OASIS</h1>
+            <span class="text-xs text-oasis-400 font-medium tracking-wider uppercase">Punto de Venta & Inventario</span>
+          </div>
+        </div>
+
+        <!-- Connection Status Banner -->
+        <div class="px-4 py-2 my-3 mx-3 rounded-lg bg-slate-800/70 border border-slate-700/50 flex items-center justify-between text-xs">
+          <div class="flex items-center gap-2">
+            <span id="apiStatusDot" class="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse"></span>
+            <span id="apiStatusText" class="text-slate-300 font-medium">Conectando...</span>
+          </div>
+          <button onclick="checkApiConnection()" class="text-slate-400 hover:text-oasis-400 transition" title="Recomprobar estado">
+            <i class="fa-solid fa-rotate-right"></i>
+          </button>
+        </div>
+
+        <!-- Navigation Links -->
+        <nav class="px-3 space-y-1">
+          <button onclick="switchTab('dashboard')" id="nav-dashboard" class="nav-btn w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition text-oasis-400 bg-oasis-500/10 border border-oasis-500/30">
+            <i class="fa-solid fa-chart-pie w-5 text-center"></i> Dashboard
+          </button>
+          <button onclick="switchTab('products')" id="nav-products" class="nav-btn w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition text-slate-400 hover:bg-slate-800 hover:text-slate-200">
+            <i class="fa-solid fa-boxes-stacked w-5 text-center"></i> Productos & Stock
+          </button>
+          <button onclick="switchTab('pos')" id="nav-pos" class="nav-btn w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition text-slate-400 hover:bg-slate-800 hover:text-slate-200">
+            <i class="fa-solid fa-cash-register w-5 text-center"></i> Punto de Venta (POS)
+          </button>
+          <button onclick="switchTab('purchases')" id="nav-purchases" class="nav-btn w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition text-slate-400 hover:bg-slate-800 hover:text-slate-200">
+            <i class="fa-solid fa-truck-field w-5 text-center"></i> Compras & Ingresos
+          </button>
+          <button onclick="switchTab('kardex')" id="nav-kardex" class="nav-btn w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition text-slate-400 hover:bg-slate-800 hover:text-slate-200">
+            <i class="fa-solid fa-file-invoice-dollar w-5 text-center"></i> Kardex Movimientos
+          </button>
+          <button onclick="switchTab('users')" id="nav-users" class="nav-btn w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition text-slate-400 hover:bg-slate-800 hover:text-slate-200">
+            <i class="fa-solid fa-users-gear w-5 text-center"></i> Usuarios & Config
+          </button>
+        </nav>
+      </div>
+
+      <!-- User Profile Footer -->
+      <div class="p-4 border-t border-slate-800 bg-slate-900/50">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-oasis-400">
+            <i class="fa-solid fa-user-tie"></i>
+          </div>
+          <div class="overflow-hidden">
+            <p id="currentUserDisplay" class="text-xs font-semibold text-white truncate">Admin Oasis</p>
+            <p class="text-[10px] text-slate-400 truncate">admin@pollosoasis.com</p>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content Body -->
+    <main class="flex-1 flex flex-col overflow-hidden bg-slate-950">
+      
+      <!-- Top Bar -->
+      <header class="h-16 border-b border-slate-800 bg-slate-900/50 px-6 flex items-center justify-between shrink-0">
+        <div class="flex items-center gap-3">
+          <h2 id="currentTabTitle" class="text-lg font-bold text-white tracking-tight">Dashboard General</h2>
+          <span id="tabSubtitle" class="text-xs text-slate-400 border-l border-slate-700 pl-3">Resumen de operaciones en tiempo real</span>
+        </div>
+        <div class="flex items-center gap-3">
+          <button onclick="syncAllData()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition flex items-center gap-2 border border-slate-700">
+            <i class="fa-solid fa-arrows-rotate"></i> Sincronizar
+          </button>
+          <div class="text-xs text-slate-400 font-mono bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-800" id="clockDisplay">
+            --:--:--
+          </div>
+        </div>
+      </header>
+
+      <!-- Dynamic Tab Contents -->
+      <div class="flex-1 overflow-y-auto p-6 custom-scrollbar">
+
+        <!-- 1. DASHBOARD TAB -->
+        <section id="tab-dashboard" class="tab-content space-y-6">
+          <!-- KPI Cards -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 flex items-center justify-between">
+              <div>
+                <p class="text-xs text-slate-400 font-medium">Ventas Realizadas</p>
+                <h3 id="kpiSalesTotal" class="text-2xl font-bold text-white mt-1">Bs 0.00</h3>
+                <p class="text-[11px] text-emerald-400 mt-1 flex items-center gap-1">
+                  <i class="fa-solid fa-arrow-trend-up"></i> <span id="kpiSalesCount">0</span> operaciones
+                </p>
+              </div>
+              <div class="w-12 h-12 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center text-xl">
+                <i class="fa-solid fa-sack-dollar"></i>
+              </div>
+            </div>
+
+            <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 flex items-center justify-between">
+              <div>
+                <p class="text-xs text-slate-400 font-medium">Total Productos</p>
+                <h3 id="kpiProductsTotal" class="text-2xl font-bold text-white mt-1">0</h3>
+                <p class="text-[11px] text-slate-400 mt-1">En catálogo activo</p>
+              </div>
+              <div class="w-12 h-12 rounded-xl bg-oasis-500/10 text-oasis-400 border border-oasis-500/20 flex items-center justify-center text-xl">
+                <i class="fa-solid fa-drumstick-bite"></i>
+              </div>
+            </div>
+
+            <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 flex items-center justify-between">
+              <div>
+                <p class="text-xs text-slate-400 font-medium">Alerta de Stock Básico</p>
+                <h3 id="kpiStockAlerts" class="text-2xl font-bold text-amber-400 mt-1">0</h3>
+                <p class="text-[11px] text-amber-400/80 mt-1">Requieren reposición</p>
+              </div>
+              <div class="w-12 h-12 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center justify-center text-xl">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+              </div>
+            </div>
+
+            <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 flex items-center justify-between">
+              <div>
+                <p class="text-xs text-slate-400 font-medium">Total Compras / Insumos</p>
+                <h3 id="kpiPurchasesTotal" class="text-2xl font-bold text-white mt-1">Bs 0.00</h3>
+                <p class="text-[11px] text-slate-400 mt-1">Inversión acumulada</p>
+              </div>
+              <div class="w-12 h-12 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center justify-center text-xl">
+                <i class="fa-solid fa-cart-flatbed"></i>
+              </div>
+            </div>
+          </div>
+
+          <!-- Charts Section -->
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-5">
+              <div class="flex items-center justify-between mb-4">
+                <h4 class="font-semibold text-white text-sm">Resumen de Ventas e Ingresos</h4>
+                <span class="text-xs text-slate-500">Últimos registros</span>
+              </div>
+              <div class="h-64 relative">
+                <canvas id="salesChart"></canvas>
+              </div>
+            </div>
+
+            <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-5">
+              <div class="flex items-center justify-between mb-4">
+                <h4 class="font-semibold text-white text-sm">Nivel de Stock de Productos</h4>
+                <span class="text-xs text-slate-500">Unidades en almacén</span>
+              </div>
+              <div class="h-64 relative">
+                <canvas id="stockChart"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <!-- Recent Activity Grid -->
+          <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-5">
+            <h4 class="font-semibold text-white text-sm mb-4">Últimos Movimientos de Kardex</h4>
+            <div class="overflow-x-auto">
+              <table class="w-full text-xs text-left">
+                <thead class="text-slate-400 uppercase bg-slate-800/50 rounded-lg">
+                  <tr>
+                    <th class="p-3">ID</th>
+                    <th class="p-3">Producto</th>
+                    <th class="p-3">Tipo</th>
+                    <th class="p-3">Cant. Movida</th>
+                    <th class="p-3">Stock Resultante</th>
+                    <th class="p-3">Fecha</th>
+                  </tr>
+                </thead>
+                <tbody id="recentKardexTable" class="divide-y divide-slate-800 text-slate-300">
+                  <!-- Dynamic Rows -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- 2. PRODUCTS TAB -->
+        <section id="tab-products" class="tab-content hidden space-y-4">
+          <div class="flex flex-col sm:flex-row justify-between gap-3 items-center">
+            <div class="relative w-full sm:w-72">
+              <i class="fa-solid fa-magnifying-glass absolute left-3 top-3 text-slate-500 text-xs"></i>
+              <input type="text" id="productSearch" onkeyup="renderProductsTable()" placeholder="Buscar producto..." class="w-full pl-9 pr-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-oasis-500">
+            </div>
+            <button onclick="openProductModal()" class="w-full sm:w-auto px-4 py-2 bg-oasis-500 hover:bg-oasis-600 text-white font-medium text-xs rounded-xl transition flex items-center justify-center gap-2 shadow-lg shadow-oasis-500/20">
+              <i class="fa-solid fa-plus"></i> Nuevo Producto
+            </button>
+          </div>
+
+          <div class="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden">
+            <div class="overflow-x-auto">
+              <table class="w-full text-xs text-left">
+                <thead class="text-slate-400 uppercase bg-slate-800/60 border-b border-slate-800">
+                  <tr>
+                    <th class="p-3.5">ID</th>
+                    <th class="p-3.5">Nombre del Producto</th>
+                    <th class="p-3.5">Precio Compra</th>
+                    <th class="p-3.5">Precio Venta</th>
+                    <th class="p-3.5">Stock Actual</th>
+                    <th class="p-3.5">Stock Mínimo</th>
+                    <th class="p-3.5">Estado Stock</th>
+                    <th class="p-3.5 text-center">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody id="productsTableBody" class="divide-y divide-slate-800 text-slate-300">
+                  <!-- Dynamic Rows -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- 3. POS (POINT OF SALE) TAB -->
+        <section id="tab-pos" class="tab-content hidden h-full">
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
+            <!-- Product Catalog Grid -->
+            <div class="lg:col-span-2 flex flex-col gap-4">
+              <div class="bg-slate-900 border border-slate-800 p-3 rounded-2xl flex items-center gap-3">
+                <i class="fa-solid fa-magnifying-glass text-slate-500 ml-2"></i>
+                <input type="text" id="posSearch" onkeyup="renderPosCatalog()" placeholder="Buscar en menú o platos..." class="bg-transparent text-xs text-white w-full focus:outline-none">
+              </div>
+
+              <div id="posGrid" class="grid grid-cols-2 sm:grid-cols-3 gap-3 overflow-y-auto max-h-[calc(100vh-220px)] custom-scrollbar pr-1">
+                <!-- Dynamic POS Product Cards -->
+              </div>
+            </div>
+
+            <!-- Cart / Checkout Panel -->
+            <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between h-[calc(100vh-180px)]">
+              <div>
+                <div class="flex justify-between items-center pb-3 border-b border-slate-800">
+                  <h3 class="font-bold text-white text-sm flex items-center gap-2">
+                    <i class="fa-solid fa-cart-shopping text-oasis-400"></i> Orden Actual
+                  </h3>
+                  <button onclick="clearCart()" class="text-[11px] text-slate-400 hover:text-red-400">Vaciar</button>
+                </div>
+
+                <!-- Client Selector -->
+                <div class="my-3">
+                  <label class="text-[11px] text-slate-400 block mb-1">Cliente</label>
+                  <select id="posClientSelect" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none">
+                    <option value="1">Cliente General (Sin NIT/CI)</option>
+                    <option value="2">Juan Pérez (NIT 4839201)</option>
+                    <option value="3">María López (NIT 1029384)</option>
+                  </select>
+                </div>
+
+                <!-- Cart Items List -->
+                <div id="cartItemsList" class="space-y-2 overflow-y-auto max-h-[220px] custom-scrollbar my-2 pr-1">
+                  <!-- Dynamic Cart Items -->
+                </div>
+              </div>
+
+              <!-- Cart Summary & Checkout -->
+              <div class="border-t border-slate-800 pt-3 space-y-2">
+                <div class="flex justify-between text-xs text-slate-400">
+                  <span>Subtotal</span>
+                  <span id="cartSubtotal">Bs 0.00</span>
+                </div>
+                <div class="flex justify-between text-xs text-slate-400">
+                  <span>Impuestos (0%)</span>
+                  <span>Bs 0.00</span>
+                </div>
+                <div class="flex justify-between text-base font-extrabold text-white pt-1 border-t border-slate-800/80">
+                  <span>Total a Pagar</span>
+                  <span id="cartTotal" class="text-oasis-400">Bs 0.00</span>
+                </div>
+
+                <button onclick="processSale()" class="w-full mt-3 py-3 bg-gradient-to-r from-oasis-500 to-amber-600 hover:from-oasis-600 hover:to-amber-700 text-white font-bold text-xs rounded-xl shadow-lg shadow-oasis-500/25 transition">
+                  <i class="fa-solid fa-check-circle"></i> CONCLUIR VENTA
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 4. PURCHASES TAB -->
+        <section id="tab-purchases" class="tab-content hidden space-y-6">
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- New Purchase Form -->
+            <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 space-y-4">
+              <h3 class="font-bold text-white text-sm border-b border-slate-800 pb-2">Registrar Compra / Insumos</h3>
+              
+              <div>
+                <label class="text-xs text-slate-400 block mb-1">Proveedor</label>
+                <select id="purchaseSupplier" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none">
+                  <option value="1">Avícola Sofía S.A.</option>
+                  <option value="2">Distribuidora Insumos Oasis</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="text-xs text-slate-400 block mb-1">Producto a Abastecer</label>
+                <select id="purchaseProduct" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none">
+                  <!-- Dynamic Products Select -->
+                </select>
+              </div>
+
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="text-xs text-slate-400 block mb-1">Cantidad</label>
+                  <input type="number" id="purchaseQty" min="1" value="10" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none">
+                </div>
+                <div>
+                  <label class="text-xs text-slate-400 block mb-1">Costo Unit. (Bs)</label>
+                  <input type="number" id="purchaseCost" step="0.01" value="25.00" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none">
+                </div>
+              </div>
+
+              <button onclick="registerPurchase()" class="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs rounded-xl transition flex items-center justify-center gap-2">
+                <i class="fa-solid fa-cart-flatbed"></i> Registrar Ingreso de Stock
+              </button>
+            </div>
+
+            <!-- Purchases Table -->
+            <div class="lg:col-span-2 bg-slate-900/90 border border-slate-800 rounded-2xl p-5">
+              <h3 class="font-bold text-white text-sm mb-4">Historial de Compras</h3>
+              <div class="overflow-x-auto">
+                <table class="w-full text-xs text-left">
+                  <thead class="text-slate-400 uppercase bg-slate-800/50">
+                    <tr>
+                      <th class="p-3">ID</th>
+                      <th class="p-3">Proveedor</th>
+                      <th class="p-3">Total Comprado</th>
+                      <th class="p-3">Fecha</th>
+                    </tr>
+                  </thead>
+                  <tbody id="purchasesTableBody" class="divide-y divide-slate-800 text-slate-300">
+                    <!-- Dynamic Rows -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 5. KARDEX TAB -->
+        <section id="tab-kardex" class="tab-content hidden space-y-4">
+          <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-5">
+            <div class="flex justify-between items-center mb-4">
+              <h3 class="font-bold text-white text-sm">Kardex / Auditoría de Movimientos</h3>
+              <span class="text-xs text-slate-500">Trazabilidad de inventario</span>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-xs text-left">
+                <thead class="text-slate-400 uppercase bg-slate-800/60 border-b border-slate-800">
+                  <tr>
+                    <th class="p-3.5">ID</th>
+                    <th class="p-3.5">Producto</th>
+                    <th class="p-3.5">Tipo Movimiento</th>
+                    <th class="p-3.5">Cantidad Previa</th>
+                    <th class="p-3.5">Cambio</th>
+                    <th class="p-3.5">Cantidad Final</th>
+                    <th class="p-3.5">Motivo / Detalle</th>
+                    <th class="p-3.5">Fecha</th>
+                  </tr>
+                </thead>
+                <tbody id="kardexTableBody" class="divide-y divide-slate-800 text-slate-300">
+                  <!-- Dynamic Rows -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- 6. USERS & CONFIG TAB -->
+        <section id="tab-users" class="tab-content hidden space-y-6">
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Users List -->
+            <div class="lg:col-span-2 bg-slate-900/90 border border-slate-800 rounded-2xl p-5">
+              <h3 class="font-bold text-white text-sm mb-4">Usuarios del Sistema</h3>
+              <div class="overflow-x-auto">
+                <table class="w-full text-xs text-left">
+                  <thead class="text-slate-400 uppercase bg-slate-800/50">
+                    <tr>
+                      <th class="p-3">ID</th>
+                      <th class="p-3">Nombre</th>
+                      <th class="p-3">Email</th>
+                      <th class="p-3">Rol asignado</th>
+                    </tr>
+                  </thead>
+                  <tbody id="usersTableBody" class="divide-y divide-slate-800 text-slate-300">
+                    <!-- Dynamic Rows -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- API Endpoint Configurator -->
+            <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 space-y-4">
+              <h3 class="font-bold text-white text-sm border-b border-slate-800 pb-2">Configuración de Conexión</h3>
+              <p class="text-xs text-slate-400">Puedes modificar la URL del backend desplegado en Render:</p>
+              
+              <div>
+                <label class="text-xs text-slate-400 block mb-1">API Backend URL</label>
+                <input type="text" id="apiUrlInput" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-oasis-500 font-mono">
+              </div>
+
+              <div class="flex gap-2">
+                <button onclick="saveApiUrl()" class="flex-1 py-2 bg-oasis-500 hover:bg-oasis-600 text-white font-medium text-xs rounded-xl transition">
+                  Guardar y Probar
+                </button>
+                <button onclick="resetApiUrl()" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-xl transition">
+                  Reset
+                </button>
+              </div>
+
+              <div class="p-3 rounded-xl bg-slate-950 border border-slate-800 text-[11px] text-slate-400 space-y-1">
+                <p class="font-semibold text-slate-300">Modo de Operación:</p>
+                <p id="modeDescription">Detección automática de la API en Render con fallback a simulación local para garantizar fluidez.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+      </div>
+    </main>
+  </div>
+
+  <!-- APPLICATION LOGIC JS -->
+  <script>
+    // State management
+    let API_URL = localStorage.getItem('OASIS_API_URL') || 'https://pollos-oasis-backend.onrender.com';
+    let isLiveApi = false;
+    let products = [];
+    let sales = [];
+    let purchases = [];
+    let kardex = [];
+    let users = [];
+    let cart = [];
+
+    // Mock initial data for fallback
+    const mockProducts = [
+      { id: 1, nombre: 'Pollo Entero', precio_compra: 30.00, precio_venta: 45.00, stock_actual: 18, stock_minimo: 5 },
+      { id: 2, nombre: 'Medio Pollo', precio_compra: 15.00, precio_venta: 24.00, stock_actual: 25, stock_minimo: 8 },
+      { id: 3, nombre: 'Cuarto de Pollo', precio_compra: 10.00, precio_venta: 16.00, stock_actual: 32, stock_minimo: 10 },
+      { id: 4, nombre: 'Combo Familiar + Papas', precio_compra: 40.00, precio_venta: 65.00, stock_actual: 4, stock_minimo: 5 },
+      { id: 5, nombre: 'Gaseosa 2 Litros', precio_compra: 8.00, precio_venta: 14.00, stock_actual: 40, stock_minimo: 12 }
+    ];
+
+    const mockUsers = [
+      { id: 1, nombre: 'Admin Oasis', email: 'admin@pollosoasis.com', rol: 'Administrador' },
+      { id: 2, nombre: 'Juan Vendedor', email: 'cajero@pollosoasis.com', rol: 'Cajero/Vendedor' },
+      { id: 3, nombre: 'Carlos Almacén', email: 'almacen@pollosoasis.com', rol: 'Encargado de Almacen' }
+    ];
+
+    // Chart instances
+    let salesChartInstance = null;
+    let stockChartInstance = null;
+
+    // Toast Notification System
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      
+      const colors = {
+        success: 'bg-emerald-900/90 border-emerald-600 text-emerald-100',
+        error: 'bg-red-900/90 border-red-600 text-red-100',
+        warning: 'bg-amber-900/90 border-amber-600 text-amber-100',
+        info: 'bg-slate-900/90 border-oasis-500 text-slate-100'
+      };
+
+      const icons = {
+        success: 'fa-circle-check text-emerald-400',
+        error: 'fa-circle-xmark text-red-400',
+        warning: 'fa-triangle-exclamation text-amber-400',
+        info: 'fa-circle-info text-oasis-400'
+      };
+
+      toast.className = `p-3.5 rounded-xl border shadow-xl flex items-center gap-3 text-xs font-medium backdrop-blur-md transform transition-all duration-300 translate-x-10 opacity-0 ${colors[type]}`;
+      toast.innerHTML = `<i class="fa-solid ${icons[type]} text-base"></i><span>${message}</span>`;
+
+      container.appendChild(toast);
+      setTimeout(() => toast.classList.remove('translate-x-10', 'opacity-0'), 10);
+      setTimeout(() => {
+        toast.classList.add('translate-x-10', 'opacity-0');
+        setTimeout(() => toast.remove(), 300);
+      }, 3500);
+    }
+
+    // Modal Manager
+    function openModal(contentHtml) {
+      const overlay = document.getElementById('modalOverlay');
+      const body = document.getElementById('modalBody');
+      const modalContent = document.getElementById('modalContent');
+      
+      body.innerHTML = contentHtml;
+      overlay.classList.remove('hidden');
+      setTimeout(() => {
+        modalContent.classList.remove('scale-95', 'opacity-0');
+        modalContent.classList.add('scale-100', 'opacity-100');
+      }, 10);
+    }
+
+    function closeModal() {
+      const overlay = document.getElementById('modalOverlay');
+      const modalContent = document.getElementById('modalContent');
+      
+      modalContent.classList.remove('scale-100', 'opacity-100');
+      modalContent.classList.add('scale-95', 'opacity-0');
+      setTimeout(() => overlay.classList.add('hidden'), 200);
+    }
+
+    // Tab Navigation
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+      document.querySelectorAll('.nav-btn').forEach(btn => {
+        btn.classList.remove('text-oasis-400', 'bg-oasis-500/10', 'border', 'border-oasis-500/30');
+        btn.classList.add('text-slate-400');
+      });
+
+      const targetTab = document.getElementById(`tab-${tabId}`);
+      const targetNav = document.getElementById(`nav-${tabId}`);
+      if (targetTab) targetTab.classList.remove('hidden');
+      if (targetNav) {
+        targetNav.classList.add('text-oasis-400', 'bg-oasis-500/10', 'border', 'border-oasis-500/30');
+        targetNav.classList.remove('text-slate-400');
+      }
+
+      // Update titles
+      const titles = {
+        dashboard: ['Dashboard General', 'Resumen de operaciones en tiempo real'],
+        products: ['Gestión de Productos & Stock', 'Control de inventario de Pollos Oasis'],
+        pos: ['Punto de Venta (POS)', 'Caja registradora táctil e impresión de comprobantes'],
+        purchases: ['Compras & Insumos', 'Registro de ingreso de productos desde proveedores'],
+        kardex: ['Kardex y Trazabilidad', 'Historial auditado de movimientos de inventario'],
+        users: ['Usuarios & Configuración', 'Gestión de roles y conexión de backend API']
+      };
+
+      if (titles[tabId]) {
+        document.getElementById('currentTabTitle').innerText = titles[tabId][0];
+        document.getElementById('tabSubtitle').innerText = titles[tabId][1];
+      }
+    }
+
+    // Clock
+    function updateClock() {
+      const now = new Date();
+      document.getElementById('clockDisplay').innerText = now.toLocaleTimeString();
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    // API & Data Sync
+    async function checkApiConnection() {
+      const dot = document.getElementById('apiStatusDot');
+      const text = document.getElementById('apiStatusText');
+      dot.className = 'w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse';
+      text.innerText = 'Probando API...';
+
+      try {
+        const res = await fetch(API_URL, { method: 'GET', signal: AbortSignal.timeout(4000) });
+        if (res.ok) {
+          isLiveApi = true;
+          dot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500';
+          text.innerText = 'Render API Conectada';
+        } else {
+          throw new Error('API Response Not OK');
+        }
+      } catch (err) {
+        isLiveApi = false;
+        dot.className = 'w-2.5 h-2.5 rounded-full bg-blue-500';
+        text.innerText = 'Modo Local / Demo';
+      }
+    }
+
+    async function syncAllData() {
+      await checkApiConnection();
+      document.getElementById('apiUrlInput').value = API_URL;
+
+      if (isLiveApi) {
+        try {
+          const [resProds, resUsers, resSales, resMovs] = await Promise.all([
+            fetch(`${API_URL}/api/products`).then(r => r.json()),
+            fetch(`${API_URL}/api/users`).then(r => r.json()),
+            fetch(`${API_URL}/api/sales`).then(r => r.json()),
+            fetch(`${API_URL}/api/inventory-movements`).then(r => r.json())
+          ]);
+
+          products = Array.isArray(resProds) && resProds.length ? resProds : mockProducts;
+          users = Array.isArray(resUsers) && resUsers.length ? resUsers : mockUsers;
+          sales = Array.isArray(resSales) ? resSales : [];
+          kardex = Array.isArray(resMovs) ? resMovs : [];
+          
+          showToast('Datos sincronizados con la API de Render', 'success');
+        } catch (e) {
+          useLocalDataFallback();
+        }
+      } else {
+        useLocalDataFallback();
+      }
+
+      renderAllViews();
+    }
+
+    function useLocalDataFallback() {
+      if (!products.length) products = [...mockProducts];
+      if (!users.length) users = [...mockUsers];
+      if (!kardex.length) {
+        kardex = [
+          { id: 1, product_id: 1, producto_nombre: 'Pollo Entero', tipo_movimiento: 'ENTRADA', cantidad_previa: 0, cantidad: 20, cantidad_final: 20, motivo: 'Stock Inicial', fecha: new Date().toISOString() }
+        ];
+      }
+    }
+
+    function renderAllViews() {
+      renderDashboard();
+      renderProductsTable();
+      renderPosCatalog();
+      renderPurchasesView();
+      renderKardexTable();
+      renderUsersTable();
+    }
+
+    // Dashboard Rendering
+    function renderDashboard() {
+      const totalSales = sales.reduce((acc, s) => acc + Number(s.total || 0), 0);
+      const totalPurchases = purchases.reduce((acc, p) => acc + Number(p.total || 0), 0);
+      const alertStockCount = products.filter(p => Number(p.stock_actual) <= Number(p.stock_minimo)).length;
+
+      document.getElementById('kpiSalesTotal').innerText = `Bs ${totalSales.toFixed(2)}`;
+      document.getElementById('kpiSalesCount').innerText = sales.length;
+      document.getElementById('kpiProductsTotal').innerText = products.length;
+      document.getElementById('kpiStockAlerts').innerText = alertStockCount;
+      document.getElementById('kpiPurchasesTotal').innerText = `Bs ${totalPurchases.toFixed(2)}`;
+
+      // Kardex preview table
+      const kardexTbody = document.getElementById('recentKardexTable');
+      kardexTbody.innerHTML = kardex.slice(0, 5).map(k => `
+        <tr>
+          <td class="p-3 font-mono text-slate-500">#${k.id}</td>
+          <td class="p-3 font-semibold text-white">${k.producto_nombre || 'Producto #' + k.product_id}</td>
+          <td class="p-3">
+            <span class="px-2 py-0.5 rounded text-[10px] font-bold ${k.tipo_movimiento === 'ENTRADA' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}">
+              ${k.tipo_movimiento}
+            </span>
+          </td>
+          <td class="p-3 font-mono">${k.cantidad}</td>
+          <td class="p-3 font-mono font-bold text-slate-200">${k.cantidad_final}</td>
+          <td class="p-3 text-slate-400">${new Date(k.fecha).toLocaleDateString()}</td>
+        </tr>
+      `).join('') || `<tr><td colspan="6" class="p-4 text-center text-slate-500">Sin movimientos registrados</td></tr>`;
+
+      renderCharts();
+    }
+
+    // Chart.js initialization
+    function renderCharts() {
+      const ctx1 = document.getElementById('salesChart').getContext('2d');
+      const ctx2 = document.getElementById('stockChart').getContext('2d');
+
+      if (salesChartInstance) salesChartInstance.destroy();
+      if (stockChartInstance) stockChartInstance.destroy();
+
+      salesChartInstance = new Chart(ctx1, {
+        type: 'line',
+        data: {
+          labels: ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'],
+          datasets: [{
+            label: 'Ventas (Bs)',
+            data: [120, 190, 300, 250, 420, 680, 550],
+            borderColor: '#f77313',
+            backgroundColor: 'rgba(247, 115, 19, 0.15)',
+            fill: true,
+            tension: 0.4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8' } },
+            y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8' } }
+          }
+        }
+      });
+
+      stockChartInstance = new Chart(ctx2, {
+        type: 'bar',
+        data: {
+          labels: products.map(p => p.nombre.substring(0, 12)),
+          datasets: [{
+            label: 'Stock Actual',
+            data: products.map(p => p.stock_actual),
+            backgroundColor: products.map(p => p.stock_actual <= p.stock_minimo ? '#f59e0b' : '#3b82f6'),
+            borderRadius: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { grid: { display: false }, ticks: { color: '#94a3b8' } },
+            y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8' } }
+          }
+        }
+      });
+    }
+
+    // Products Management
+    function renderProductsTable() {
+      const search = document.getElementById('productSearch').value.toLowerCase();
+      const filtered = products.filter(p => p.nombre.toLowerCase().includes(search));
+      const tbody = document.getElementById('productsTableBody');
+
+      tbody.innerHTML = filtered.map(p => {
+        const isLow = Number(p.stock_actual) <= Number(p.stock_minimo);
+        return `
+          <tr class="hover:bg-slate-800/40 transition">
+            <td class="p-3.5 font-mono text-slate-500">#${p.id}</td>
+            <td class="p-3.5 font-semibold text-white">${p.nombre}</td>
+            <td class="p-3.5 text-slate-400">Bs ${Number(p.precio_compra).toFixed(2)}</td>
+            <td class="p-3.5 font-bold text-oasis-400">Bs ${Number(p.precio_venta).toFixed(2)}</td>
+            <td class="p-3.5 font-bold ${isLow ? 'text-amber-400' : 'text-slate-200'}">${p.stock_actual}</td>
+            <td class="p-3.5 text-slate-400">${p.stock_minimo}</td>
+            <td class="p-3.5">
+              ${isLow 
+                ? `<span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-500/20 text-amber-400 border border-amber-500/30"><i class="fa-solid fa-triangle-exclamation"></i> Bajo Stock</span>`
+                : `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400">Normal</span>`
+              }
+            </td>
+            <td class="p-3.5 text-center space-x-2">
+              <button onclick="editProduct(${p.id})" class="text-blue-400 hover:text-blue-300 p-1"><i class="fa-solid fa-pen-to-square"></i></button>
+              <button onclick="deleteProduct(${p.id})" class="text-red-400 hover:text-red-300 p-1"><i class="fa-solid fa-trash"></i></button>
+            </td>
+          </tr>
+        `;
+      }).join('') || `<tr><td colspan="8" class="p-6 text-center text-slate-500">No hay productos disponibles</td></tr>`;
+    }
+
+    function openProductModal(editingId = null) {
+      const prod = editingId ? products.find(p => p.id === editingId) : null;
+      const html = `
+        <h3 class="font-bold text-white text-base mb-4">${prod ? 'Editar Producto' : 'Nuevo Producto'}</h3>
+        <form onsubmit="saveProduct(event, ${editingId})" class="space-y-3">
+          <div>
+            <label class="text-xs text-slate-400 block mb-1">Nombre del Producto</label>
+            <input type="text" id="mProdName" required value="${prod ? prod.nombre : ''}" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-oasis-500">
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="text-xs text-slate-400 block mb-1">Precio Compra (Bs)</label>
+              <input type="number" step="0.01" id="mProdCost" required value="${prod ? prod.precio_compra : ''}" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none">
+            </div>
+            <div>
+              <label class="text-xs text-slate-400 block mb-1">Precio Venta (Bs)</label>
+              <input type="number" step="0.01" id="mProdPrice" required value="${prod ? prod.precio_venta : ''}" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none">
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="text-xs text-slate-400 block mb-1">Stock Inicial</label>
+              <input type="number" id="mProdStock" required value="${prod ? prod.stock_actual : '10'}" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none">
+            </div>
+            <div>
+              <label class="text-xs text-slate-400 block mb-1">Stock Mínimo</label>
+              <input type="number" id="mProdMin" required value="${prod ? prod.stock_minimo : '5'}" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none">
+            </div>
+          </div>
+          <button type="submit" class="w-full mt-4 py-2.5 bg-oasis-500 hover:bg-oasis-600 text-white font-bold text-xs rounded-xl transition shadow-lg shadow-oasis-500/20">
+            ${prod ? 'Actualizar Producto' : 'Guardar Producto'}
+          </button>
+        </form>
+      `;
+      openModal(html);
+    }
+
+    async function saveProduct(e, editingId) {
+      e.preventDefault();
+      const payload = {
+        nombre: document.getElementById('mProdName').value,
+        precio_compra: parseFloat(document.getElementById('mProdCost').value),
+        precio_venta: parseFloat(document.getElementById('mProdPrice').value),
+        stock_actual: parseInt(document.getElementById('mProdStock').value),
+        stock_minimo: parseInt(document.getElementById('mProdMin').value)
+      };
+
+      if (isLiveApi && !editingId) {
+        try {
+          await fetch(`${API_URL}/api/products`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+        } catch (err) {}
+      }
+
+      if (editingId) {
+        const index = products.findIndex(p => p.id === editingId);
+        if (index !== -1) products[index] = { ...products[index], ...payload };
+        showToast('Producto actualizado correctamente', 'success');
+      } else {
+        const newId = products.length ? Math.max(...products.map(p => p.id)) + 1 : 1;
+        products.push({ id: newId, ...payload });
+        
+        // Add Kardex entry
+        kardex.unshift({
+          id: kardex.length + 1,
+          product_id: newId,
+          producto_nombre: payload.nombre,
+          tipo_movimiento: 'ENTRADA',
+          cantidad_previa: 0,
+          cantidad: payload.stock_actual,
+          cantidad_final: payload.stock_actual,
+          motivo: 'Registro de Producto Nuevo',
+          fecha: new Date().toISOString()
+        });
+
+        showToast('Producto guardado en el catálogo', 'success');
+      }
+
+      closeModal();
+      renderAllViews();
+    }
+
+    function editProduct(id) {
+      openProductModal(id);
+    }
+
+    function deleteProduct(id) {
+      products = products.filter(p => p.id !== id);
+      showToast('Producto eliminado del sistema', 'warning');
+      renderAllViews();
+    }
+
+    // POS Catalog & Shopping Cart
+    function renderPosCatalog() {
+      const search = document.getElementById('posSearch').value.toLowerCase();
+      const grid = document.getElementById('posGrid');
+
+      grid.innerHTML = products.filter(p => p.nombre.toLowerCase().includes(search)).map(p => `
+        <div onclick="addToCart(${p.id})" class="bg-slate-900 border border-slate-800 hover:border-oasis-500/50 rounded-2xl p-3.5 cursor-pointer transition flex flex-col justify-between group relative overflow-hidden">
+          <div class="flex justify-between items-start">
+            <span class="w-8 h-8 rounded-lg bg-oasis-500/10 text-oasis-400 group-hover:bg-oasis-500 group-hover:text-white transition flex items-center justify-center font-bold text-xs">
+              <i class="fa-solid fa-drumstick-bite"></i>
+            </span>
+            <span class="text-[10px] font-bold px-2 py-0.5 rounded ${p.stock_actual > 0 ? 'bg-slate-800 text-slate-300' : 'bg-red-500/20 text-red-400'}">
+              Stock: ${p.stock_actual}
+            </span>
+          </div>
+          <div class="mt-3">
+            <h4 class="font-bold text-white text-xs truncate">${p.nombre}</h4>
+            <p class="text-oasis-400 font-extrabold text-sm mt-1">Bs ${Number(p.precio_venta).toFixed(2)}</p>
+          </div>
+        </div>
+      `).join('') || `<div class="col-span-full p-8 text-center text-slate-500">No se encontraron productos</div>`;
+
+      renderCart();
+    }
+
+    function addToCart(productId) {
+      const prod = products.find(p => p.id === productId);
+      if (!prod || prod.stock_actual <= 0) {
+        showToast('Sin stock disponible para este producto', 'error');
+        return;
+      }
+
+      const cartItem = cart.find(item => item.product.id === productId);
+      if (cartItem) {
+        if (cartItem.cantidad >= prod.stock_actual) {
+          showToast('No puedes agregar más del stock existente', 'warning');
+          return;
+        }
+        cartItem.cantidad++;
+      } else {
+        cart.push({ product: prod, cantidad: 1 });
+      }
+
+      renderCart();
+    }
+
+    function renderCart() {
+      const list = document.getElementById('cartItemsList');
+      let subtotal = 0;
+
+      list.innerHTML = cart.map(item => {
+        const itemSubtotal = item.product.precio_venta * item.cantidad;
+        subtotal += itemSubtotal;
+        return `
+          <div class="bg-slate-950 border border-slate-800/80 rounded-xl p-2.5 flex items-center justify-between text-xs">
+            <div class="overflow-hidden pr-2">
+              <p class="font-bold text-white truncate">${item.product.nombre}</p>
+              <p class="text-[10px] text-slate-400">Bs ${Number(item.product.precio_venta).toFixed(2)} c/u</p>
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+              <button onclick="updateCartQty(${item.product.id}, -1)" class="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center justify-center font-bold">-</button>
+              <span class="font-mono font-bold text-white">${item.cantidad}</span>
+              <button onclick="updateCartQty(${item.product.id}, 1)" class="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center justify-center font-bold">+</button>
+              <span class="font-bold text-oasis-400 min-w-[50px] text-right">Bs ${itemSubtotal.toFixed(2)}</span>
+            </div>
+          </div>
+        `;
+      }).join('') || `<div class="p-6 text-center text-slate-500 text-xs">El carrito está vacío</div>`;
+
+      document.getElementById('cartSubtotal').innerText = `Bs ${subtotal.toFixed(2)}`;
+      document.getElementById('cartTotal').innerText = `Bs ${subtotal.toFixed(2)}`;
+    }
+
+    function updateCartQty(productId, change) {
+      const item = cart.find(i => i.product.id === productId);
+      if (!item) return;
+
+      item.cantidad += change;
+      if (item.cantidad <= 0) {
+        cart = cart.filter(i => i.product.id !== productId);
+      }
+      renderCart();
+    }
+
+    function clearCart() {
+      cart = [];
+      renderCart();
+    }
+
+    function processSale() {
+      if (!cart.length) {
+        showToast('Agrega productos al carrito primero', 'warning');
+        return;
+      }
+
+      const total = cart.reduce((acc, i) => acc + (i.product.precio_venta * i.cantidad), 0);
+
+      // Discount stock and create Kardex entry for each item
+      cart.forEach(item => {
+        const prod = products.find(p => p.id === item.product.id);
+        if (prod) {
+          const prevStock = prod.stock_actual;
+          prod.stock_actual -= item.cantidad;
+
+          kardex.unshift({
+            id: kardex.length + 1,
+            product_id: prod.id,
+            producto_nombre: prod.nombre,
+            tipo_movimiento: 'SALIDA',
+            cantidad_previa: prevStock,
+            cantidad: item.cantidad,
+            cantidad_final: prod.stock_actual,
+            motivo: 'Venta realizada en POS',
+            fecha: new Date().toISOString()
+          });
+        }
+      });
+
+      // Record Sale
+      sales.unshift({
+        id: sales.length + 1,
+        total: total,
+        fecha: new Date().toISOString()
+      });
+
+      // Show Invoice Modal
+      const html = `
+        <div class="text-center space-y-3">
+          <div class="w-12 h-12 rounded-full bg-emerald-500/20 text-emerald-400 mx-auto flex items-center justify-center text-2xl">
+            <i class="fa-solid fa-circle-check"></i>
+          </div>
+          <h3 class="font-extrabold text-white text-lg">¡Venta Exitosa!</h3>
+          <p class="text-xs text-slate-400">Comprobante de Venta - Pollos Oasis</p>
+          
+          <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 text-left text-xs space-y-2 font-mono">
+            <div class="flex justify-between border-b border-slate-800 pb-2">
+              <span>Nro. Ticket: #${sales.length}</span>
+              <span>${new Date().toLocaleTimeString()}</span>
+            </div>
+            ${cart.map(i => `
+              <div class="flex justify-between">
+                <span>${i.cantidad}x ${i.product.nombre}</span>
+                <span>Bs ${(i.product.precio_venta * i.cantidad).toFixed(2)}</span>
+              </div>
+            `).join('')}
+            <div class="border-t border-slate-800 pt-2 flex justify-between font-bold text-white text-sm">
+              <span>TOTAL:</span>
+              <span class="text-emerald-400">Bs ${total.toFixed(2)}</span>
+            </div>
+          </div>
+
+          <button onclick="closeModal()" class="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl transition">
+            Aceptar y Continuar
+          </button>
+        </div>
+      `;
+
+      clearCart();
+      renderAllViews();
+      openModal(html);
+      showToast('Venta procesada y stock actualizado', 'success');
+    }
+
+    // Purchases & Stock In
+    function renderPurchasesView() {
+      const select = document.getElementById('purchaseProduct');
+      select.innerHTML = products.map(p => `
+        <option value="${p.id}">${p.nombre} (Stock actual: ${p.stock_actual})</option>
+      `).join('');
+
+      const tbody = document.getElementById('purchasesTableBody');
+      tbody.innerHTML = purchases.map(p => `
+        <tr>
+          <td class="p-3 font-mono text-slate-500">#${p.id}</td>
+          <td class="p-3 font-semibold text-white">${p.proveedor || 'Avícola Sofía S.A.'}</td>
+          <td class="p-3 font-bold text-blue-400">Bs ${Number(p.total).toFixed(2)}</td>
+          <td class="p-3 text-slate-400">${new Date(p.fecha).toLocaleDateString()}</td>
+        </tr>
+      `).join('') || `<tr><td colspan="4" class="p-4 text-center text-slate-500">Sin compras registradas</td></tr>`;
+    }
+
+    function registerPurchase() {
+      const prodId = parseInt(document.getElementById('purchaseProduct').value);
+      const qty = parseInt(document.getElementById('purchaseQty').value);
+      const cost = parseFloat(document.getElementById('purchaseCost').value);
+
+      const prod = products.find(p => p.id === prodId);
+      if (!prod) return;
+
+      const prevStock = prod.stock_actual;
+      prod.stock_actual += qty;
+      const total = qty * cost;
+
+      purchases.unshift({
+        id: purchases.length + 1,
+        proveedor: 'Avícola Sofía S.A.',
+        total: total,
+        fecha: new Date().toISOString()
+      });
+
+      kardex.unshift({
+        id: kardex.length + 1,
+        product_id: prod.id,
+        producto_nombre: prod.nombre,
+        tipo_movimiento: 'ENTRADA',
+        cantidad_previa: prevStock,
+        cantidad: qty,
+        cantidad_final: prod.stock_actual,
+        motivo: 'Compra de Insumos / Reposición',
+        fecha: new Date().toISOString()
+      });
+
+      showToast(`Stock incrementado en +${qty} unidades`, 'success');
+      renderAllViews();
+    }
+
+    // Kardex Table
+    function renderKardexTable() {
+      const tbody = document.getElementById('kardexTableBody');
+      tbody.innerHTML = kardex.map(k => `
+        <tr class="hover:bg-slate-800/40 transition">
+          <td class="p-3.5 font-mono text-slate-500">#${k.id}</td>
+          <td class="p-3.5 font-bold text-white">${k.producto_nombre || 'Producto #' + k.product_id}</td>
+          <td class="p-3.5">
+            <span class="px-2 py-0.5 rounded text-[10px] font-bold ${k.tipo_movimiento === 'ENTRADA' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}">
+              ${k.tipo_movimiento}
+            </span>
+          </td>
+          <td class="p-3.5 font-mono text-slate-400">${k.cantidad_previa}</td>
+          <td class="p-3.5 font-mono font-bold ${k.tipo_movimiento === 'ENTRADA' ? 'text-emerald-400' : 'text-red-400'}">
+            ${k.tipo_movimiento === 'ENTRADA' ? '+' : '-'}${k.cantidad}
+          </td>
+          <td class="p-3.5 font-mono font-extrabold text-white">${k.cantidad_final}</td>
+          <td class="p-3.5 text-slate-400">${k.motivo || 'Movimiento de Almacén'}</td>
+          <td class="p-3.5 text-slate-500">${new Date(k.fecha).toLocaleString()}</td>
+        </tr>
+      `).join('') || `<tr><td colspan="8" class="p-6 text-center text-slate-500">No hay movimientos en el Kardex</td></tr>`;
+    }
+
+    // Users List
+    function renderUsersTable() {
+      const tbody = document.getElementById('usersTableBody');
+      tbody.innerHTML = users.map(u => `
+        <tr>
+          <td class="p-3 font-mono text-slate-500">#${u.id}</td>
+          <td class="p-3 font-semibold text-white">${u.nombre}</td>
+          <td class="p-3 text-slate-400">${u.email}</td>
+          <td class="p-3">
+            <span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-800 text-oasis-400 border border-slate-700">
+              ${u.rol}
+            </span>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    // API Config Helpers
+    function saveApiUrl() {
+      const val = document.getElementById('apiUrlInput').value.trim();
+      if (val) {
+        API_URL = val;
+        localStorage.setItem('OASIS_API_URL', API_URL);
+        showToast('URL de API guardada correctamente', 'info');
+        syncAllData();
+      }
+    }
+
+    function resetApiUrl() {
+      API_URL = 'https://pollos-oasis-backend.onrender.com';
+      localStorage.removeItem('OASIS_API_URL');
+      document.getElementById('apiUrlInput').value = API_URL;
+      showToast('URL restaurada al valor por defecto', 'info');
+      syncAllData();
+    }
+
+    // Initial Load
+    window.onload = function() {
+      syncAllData();
+    };
+  </script>
+</body>
+</html>
