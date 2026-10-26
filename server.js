@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 const { Pool } = require('pg');
 require('dotenv').config();
 
@@ -9,13 +10,21 @@ const port = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
+// Servir archivos estáticos (index.html)
+app.use(express.static(path.join(__dirname)));
+
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }
 });
 
-// Ruta Base / Health check
-app.get('/', async (req, res) => {
+// Servir la interfaz web visual en la raíz
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+// Health check endpoint
+app.get('/api/health', async (req, res) => {
   try {
     const result = await pool.query('SELECT NOW()');
     res.json({
@@ -61,7 +70,7 @@ app.post('/api/products', async (req, res) => {
   }
 });
 
-// 3. ENDPOINTS COMPRAS (PROVEEDORES)
+// 3. ENDPOINTS COMPRAS
 app.get('/api/purchases', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM purchases ORDER BY fecha DESC');
@@ -71,7 +80,7 @@ app.get('/api/purchases', async (req, res) => {
   }
 });
 
-// 4. ENDPOINTS VENTAS (CLIENTES)
+// 4. ENDPOINTS VENTAS
 app.get('/api/sales', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM sales ORDER BY fecha DESC');
@@ -81,7 +90,7 @@ app.get('/api/sales', async (req, res) => {
   }
 });
 
-// 5. ENDPOINTS KARDEX / MOVIMIENTOS INVENTARIO
+// 5. ENDPOINTS KARDEX / MOVIMIENTOS
 app.get('/api/inventory-movements', async (req, res) => {
   try {
     const result = await pool.query(`
